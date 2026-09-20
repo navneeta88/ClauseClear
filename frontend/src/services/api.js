@@ -1,13 +1,41 @@
 // All communication with the Flask backend goes through this file.
 const API_BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:5000";
 
-export async function checkHealth() {
-  const res = await fetch(`${API_BASE}/api/health`);
-  if (!res.ok) {
-    throw new Error(`Server responded with status ${res.status}`);
+async function request(path, options) {
+  let res;
+  try {
+    res = await fetch(`${API_BASE}${path}`, options);
+  } catch {
+    throw new Error("Could not reach the server. Is Flask running?");
   }
-  return res.json();
+  let data = null;
+  try {
+    data = await res.json();
+  } catch {
+    // response was not JSON
+  }
+  if (!res.ok) {
+    throw new Error((data && data.error) || `Request failed (status ${res.status}).`);
+  }
+  return data;
 }
+
+const postJson = (path, body) =>
+  request(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+export const checkHealth = () => request("/api/health");
+export const simplifyDocument = (documentId) =>
+  postJson("/api/simplify", { document_id: documentId });
+export const analyzeRisks = (documentId) =>
+  postJson("/api/analyze-risks", { document_id: documentId });
+export const getChecklist = (documentId) =>
+  postJson("/api/checklist", { document_id: documentId });
+export const askQuestion = (documentId, question, history) =>
+  postJson("/api/chat", { document_id: documentId, question, history });
 
 // Uses XMLHttpRequest instead of fetch because fetch can't report upload progress.
 export function uploadDocument(file, onProgress) {

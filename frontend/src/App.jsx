@@ -1,49 +1,51 @@
 import { useEffect, useState } from "react";
 import { checkHealth } from "./services/api";
-import UploadBox from "./components/UploadBox";
+import UploadPage from "./pages/UploadPage";
+import DocumentPage from "./pages/DocumentPage";
 
-function formatSize(bytes) {
-  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-export default function App() {
-  const [status, setStatus] = useState("checking"); // "checking" | "ok" | "error"
-  const [doc, setDoc] = useState(null); // uploaded document info, or null
+function Sidebar({ onHome }) {
+  const [online, setOnline] = useState(null); // null = checking
 
   useEffect(() => {
     checkHealth()
-      .then(() => setStatus("ok"))
-      .catch(() => setStatus("error"));
+      .then(() => setOnline(true))
+      .catch(() => setOnline(false));
   }, []);
 
   return (
-    <div className="app">
-      <h1>ClauseClear</h1>
-      <p className="tagline">Understand your documents in simple language.</p>
+    <aside className="sidebar">
+      <div className="brand">
+        <span className="brand-mark" aria-hidden="true">C</span>
+        <span className="brand-name">ClauseClear</span>
+      </div>
+      <nav className="side-nav">
+        <button type="button" className="nav-item active" onClick={onHome}>
+          Home
+        </button>
+      </nav>
+      <div className="side-footer">
+        <p>Understand your documents in simple language.</p>
+        <p className={`server-status ${online === false ? "off" : ""}`}>
+          {online === null ? "Connecting…" : online ? "● Server connected" : "● Server offline"}
+        </p>
+      </div>
+    </aside>
+  );
+}
 
-      <p className="status">
-        {status === "checking" && "Connecting to the server…"}
-        {status === "ok" && "✅ Backend connected"}
-        {status === "error" && "❌ Cannot reach the server. Is Flask running on port 5000?"}
-      </p>
+export default function App() {
+  const [doc, setDoc] = useState(null); // uploaded document info, or null
 
-      {doc ? (
-        <div className="doc-card">
-          <p><strong>Document:</strong> {doc.filename}</p>
-          <p className="hint">
-            {formatSize(doc.size_bytes)} · {doc.word_count} words
-            {doc.page_count ? ` · ${doc.page_count} pages` : ""}
-          </p>
-          <p><strong>Extracted text preview</strong></p>
-          <pre className="preview">{doc.preview}</pre>
-          <button type="button" className="btn secondary" onClick={() => setDoc(null)}>
-            Upload another
-          </button>
-        </div>
-      ) : (
-        <UploadBox onUploaded={setDoc} />
-      )}
+  return (
+    <div className="shell">
+      <Sidebar onHome={() => setDoc(null)} />
+      <main className="main">
+        {doc ? (
+          <DocumentPage key={doc.document_id} doc={doc} onBack={() => setDoc(null)} />
+        ) : (
+          <UploadPage onUploaded={setDoc} />
+        )}
+      </main>
     </div>
   );
 }
