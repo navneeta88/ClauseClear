@@ -147,7 +147,7 @@ Manually tested during development:
 - Rate limiting returns HTTP 429 after 10 requests per minute on an AI endpoint
 - Q&A returns "This document doesn't address that." for topics the document doesn't cover
 - The injection sample did not change the assistant's behaviour in our test
-- Dependency audits (`pip-audit`, `npm audit`): TODO (write the actual result)
+- Dependency audits run on 20 September 2026: `pip-audit` (backend) found no known vulnerabilities, and `npm audit` (frontend) reported 0 vulnerabilities
 
 There are no automated unit tests yet.
 
