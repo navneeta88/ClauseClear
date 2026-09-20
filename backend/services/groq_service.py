@@ -7,10 +7,14 @@ import os
 from dotenv import load_dotenv
 from services.grounding import is_grounded
 from services.prompts import (
+    ADVICE_REFUSAL,
+    CHAT_SYSTEM_PROMPT,
     CHECKLIST_SYSTEM_PROMPT,
     DISCLAIMER,
+    NOT_ADDRESSED,
     RISK_SYSTEM_PROMPT,
     SIMPLIFY_SYSTEM_PROMPT,
+    build_chat_message,
     wrap_document,
 )
 from groq import (
@@ -293,3 +297,51 @@ def generate_checklist(document_text):
         "key_dates": dates[:15],
         "disclaimer": DISCLAIMER,
     }
+# ---------------------------------------------------------------------------
+# Feature 3: document Q&A
+# ---------------------------------------------------------------------------
+def _format_history(history):
+    """Turn the client's chat history into a short, sanitized text block."""
+    lines = []
+    for turn in _items(history)[-6:]:
+        if not isinstance(turn, dict):
+            continue
+        role = {"user": "User", "assistant": "Assistant"}.get(turn.get("role"))
+        content = _text(turn.get("content"))[:800]
+        if role and content:
+            lines.append(f"{role}: {content}")
+    return "\n".join(lines)
+
+
+def answer_question(document_text, question, history=None):
+    raw = call_llm(
+        CHAT_SYSTEM_PROMPT,
+        build_chat_message(document_text, _format_history(history), question),
+        json_mode=True,
+        max_tokens=2000,
+    )
+    data = _parse_json(raw)
+    kind = _text(data.get("type")).lower()
+
+    if kind == "advice_request":
+        return {"answered": False, "answer": ADVICE_REFUSAL, "sources": []}
+
+    answer = _text(data.get("answer"))
+    sources = []
+    for item in _items(data.get("sources")):
+        if not isinstance(item, dict):
+            continue
+        quote = _text(item.get("quote"))[:300]
+        if is_grounded(quote, document_text):
+            sources.append({
+                "section": _text(item.get("section")) or "Not specified",
+                "quote": quote,
+            })
+
+    # An answer is shown only if it is backed by a real quote from the document.
+    if kind != "answer" or not answer or not sources:
+        if kind == "answer":
+            logger.warning("Answer had no verifiable quote; replaced with not-addressed reply")
+        return {"answered": False, "answer": NOT_ADDRESSED, "sources": []}
+
+    return {"answered": True, "answer": answer, "sources": sources[:3]}

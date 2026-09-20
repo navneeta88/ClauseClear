@@ -12,7 +12,13 @@ from flask_cors import CORS
 from werkzeug.utils import secure_filename
 
 from services.document_parser import DocumentParseError, extract_text
-from services.groq_service import LLMError, analyze_risks, generate_checklist, simplify_document
+from services.groq_service import (
+    LLMError,
+    analyze_risks,
+    answer_question,
+    generate_checklist,
+    simplify_document,
+)
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -153,5 +159,15 @@ def risks():
 def checklist():
     text = get_document_text(request.get_json(silent=True))
     return jsonify(generate_checklist(text))
+@app.post("/api/chat")
+def chat():
+    payload = request.get_json(silent=True)
+    text = get_document_text(payload)
+    question = payload.get("question")
+    if not isinstance(question, str) or not question.strip():
+        raise ApiError("Please type a question.")
+    if len(question) > 500:
+        raise ApiError("Questions can be at most 500 characters.")
+    return jsonify(answer_question(text, question.strip(), payload.get("history")))
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=5000, debug=True)
