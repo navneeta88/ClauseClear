@@ -1,10 +1,17 @@
 """Thin wrapper around the Groq API. Every AI call in ClauseClear goes through here."""
 import json
 import logging
+import re
 import os
 
 from dotenv import load_dotenv
-from services.prompts import DISCLAIMER, SIMPLIFY_SYSTEM_PROMPT, wrap_document
+from services.grounding import is_grounded
+from services.prompts import (
+    DISCLAIMER,
+    RISK_SYSTEM_PROMPT,
+    SIMPLIFY_SYSTEM_PROMPT,
+    wrap_document,
+)
 from groq import (
     APIConnectionError,
     APIStatusError,
@@ -160,3 +167,62 @@ def simplify_document(document_text):
         "key_dates": dates,
         "disclaimer": DISCLAIMER,  # fixed text from our code, not the AI
     }
+# ---------------------------------------------------------------------------
+# Feature 2: risk / clause scanner
+# ---------------------------------------------------------------------------
+_RISK_ORDER = {"high": 0, "medium": 1, "low": 2}
+
+# Sentences that give advice about signing are removed by code, not just by prompt.
+_ADVICE_PATTERN = re.compile(
+    r"\b(do not|don't|should not|shouldn't|must not|never)\s+sign\b"
+    r"|\bshould\s+(sign|accept|reject|negotiate)\b"
+    r"|\b(i|we)\s+recommend\b|\bnot advisable\b",
+    re.IGNORECASE,
+)
+
+
+def _strip_advice(text):
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+    return " ".join(s for s in sentences if not _ADVICE_PATTERN.search(s)).strip()
+
+
+def analyze_risks(document_text):
+    raw = call_llm(
+        RISK_SYSTEM_PROMPT,
+        wrap_document(
+            document_text,
+            "Scan this document for important clauses following your instructions.",
+        ),
+        json_mode=True,
+        max_tokens=3500,
+    )
+    data = _parse_json(raw)
+    if not isinstance(data.get("risks"), list):
+        raise LLMError("The AI returned an incomplete analysis. Please try again.")
+
+    risks, dropped = [], 0
+    for item in data["risks"]:
+        if not isinstance(item, dict):
+            dropped += 1
+            continue
+        excerpt = _text(item.get("clause_excerpt"))[:400]
+        level = _text(item.get("risk_level")).lower()
+        why = _strip_advice(_text(item.get("why_it_matters")))
+        section = _text(item.get("section_reference")) or "Not specified"
+
+        # Keep only items that are complete AND quote text really in the document.
+        if level not in _RISK_ORDER or not why or not is_grounded(excerpt, document_text):
+            dropped += 1
+            continue
+        risks.append({
+            "clause_excerpt": excerpt,
+            "risk_level": level,
+            "why_it_matters": why,
+            "section_reference": section,
+        })
+
+    if dropped:
+        logger.warning("Dropped %d risk item(s) that failed validation", dropped)
+
+    risks.sort(key=lambda r: _RISK_ORDER[r["risk_level"]])
+    return {"risks": risks[:12], "disclaimer": DISCLAIMER}

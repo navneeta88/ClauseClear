@@ -12,7 +12,7 @@ from flask_cors import CORS
 from werkzeug.utils import secure_filename
 
 from services.document_parser import DocumentParseError, extract_text
-from services.groq_service import LLMError, simplify_document
+from services.groq_service import LLMError, analyze_risks, simplify_document
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -145,5 +145,9 @@ def get_document_text(payload):
 def simplify():
     text = get_document_text(request.get_json(silent=True))
     return jsonify(simplify_document(text))
+@app.post("/api/analyze-risks")
+def risks():
+    text = get_document_text(request.get_json(silent=True))
+    return jsonify(analyze_risks(text))
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=5000, debug=True)
