@@ -1,5 +1,6 @@
 """Extract plain text from PDF and DOCX files."""
 import re
+import zipfile
 from pathlib import Path
 
 from docx import Document
@@ -8,10 +9,13 @@ from docx.text.paragraph import Paragraph
 from pypdf import PdfReader
 
 MIN_TEXT_CHARS = 50
+MAX_PDF_PAGES = 100
+MAX_DOCX_UNZIPPED_BYTES = 100 * 1024 * 1024  # guards against "zip bomb" files
 
 
 class DocumentParseError(Exception):
     """Raised with a user-friendly message when a file can't be read."""
+
 
 # Fancy dashes and invisible characters that can trip up AI models and text matching.
 _CHAR_MAP = str.maketrans({
@@ -25,11 +29,16 @@ def _clean(text):
     text = "\n".join(line.rstrip() for line in text.splitlines())
     return re.sub(r"\n{3,}", "\n\n", text).strip()
 
+
 def _extract_pdf(path):
     reader = PdfReader(str(path))
     if reader.is_encrypted and reader.decrypt("") == 0:
         raise DocumentParseError(
             "This PDF is password-protected. Please upload an unlocked copy."
+        )
+    if len(reader.pages) > MAX_PDF_PAGES:
+        raise DocumentParseError(
+            f"This PDF has more than {MAX_PDF_PAGES} pages, which is too long to process."
         )
     pages = [page.extract_text() or "" for page in reader.pages]
     return "\n\n".join(pages), len(reader.pages)
@@ -37,6 +46,10 @@ def _extract_pdf(path):
 
 def _extract_docx(path):
     """Read paragraphs AND tables, in the order they appear in the document."""
+    with zipfile.ZipFile(path) as archive:
+        if sum(info.file_size for info in archive.infolist()) > MAX_DOCX_UNZIPPED_BYTES:
+            raise DocumentParseError("This document is too large to process.")
+
     doc = Document(str(path))
     lines = []
     for child in doc.element.body.iterchildren():

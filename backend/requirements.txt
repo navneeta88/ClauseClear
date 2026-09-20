@@ -5,3 +5,4 @@ pypdf
 python-docx
 groq
 boto3
+Flask-Limiter
