@@ -1,4 +1,5 @@
 """Thin wrapper around the Groq API. Every AI call in ClauseClear goes through here."""
+import time
 import json
 import logging
 import re
@@ -30,8 +31,7 @@ logger = logging.getLogger(__name__)
 
 # Configurable so a retired model can be swapped without touching code.
 MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
-TIMEOUT_SECONDS = 60
-
+TIMEOUT_SECONDS = 45
 _client = None
 
 
@@ -49,7 +49,7 @@ def _get_client():
         api_key = os.getenv("GROQ_API_KEY")
         if not api_key:
             raise LLMError("The AI service is not configured on the server.", 500)
-        _client = Groq(api_key=api_key, timeout=TIMEOUT_SECONDS)
+        _client = Groq(api_key=api_key, timeout=TIMEOUT_SECONDS, max_retries=0)
     return _client
 
 
@@ -67,7 +67,7 @@ def call_llm(system_prompt, user_message, *, json_mode=False,
         # gpt-oss models "think" before answering; low effort saves tokens and time.
     if MODEL.startswith("openai/gpt-oss"):
         extra["extra_body"] = {"reasoning_effort": "low"}
-
+    started = time.perf_counter()
     try:
         response = client.chat.completions.create(
             model=MODEL,
@@ -101,7 +101,7 @@ def call_llm(system_prompt, user_message, *, json_mode=False,
                 "This document is too long for the AI service's current limits.", 413
             ) from exc
         raise LLMError("The AI service returned an error. Please try again.", 502) from exc
-
+    print(f"[groq] {MODEL} answered in {time.perf_counter() - started:.1f}s", flush=True)
     content = response.choices[0].message.content
     if not content or not content.strip():
         raise LLMError("The AI returned an empty response. Please try again.")
