@@ -8,6 +8,18 @@ ClauseClear is an AI-assisted tool that helps a non-lawyer read a rental agreeme
 
 **Demo video:** TODO (add YouTube link)
 
+## Screenshots
+
+![Home page](docs/screenshots/home.png)
+
+| Summary | Risk Scanner |
+|---|---|
+| ![Summary tab](docs/screenshots/summary.png) | ![Risk Scanner tab](docs/screenshots/risks.png) |
+
+| Q&A | Checklist |
+|---|---|
+| ![Q&A tab](docs/screenshots/qa.png) | ![Checklist tab](docs/screenshots/checklist.png) |
+
 ## Features
 
 | Tab | What it does |
