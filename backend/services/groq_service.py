@@ -7,6 +7,7 @@ import os
 from dotenv import load_dotenv
 from services.grounding import is_grounded
 from services.prompts import (
+    CHECKLIST_SYSTEM_PROMPT,
     DISCLAIMER,
     RISK_SYSTEM_PROMPT,
     SIMPLIFY_SYSTEM_PROMPT,
@@ -120,8 +121,12 @@ def _parse_json(raw):
     return data
 
 
+# Models sometimes write special hyphens and spaces; store plain ones.
+_PLAIN = str.maketrans({"\u2010": "-", "\u2011": "-", "\u00a0": " ", "\u202f": " "})
+
+
 def _text(value):
-    return value.strip() if isinstance(value, str) else ""
+    return value.translate(_PLAIN).strip() if isinstance(value, str) else ""
 
 
 def _items(value):
@@ -226,3 +231,65 @@ def analyze_risks(document_text):
 
     risks.sort(key=lambda r: _RISK_ORDER[r["risk_level"]])
     return {"risks": risks[:12], "disclaimer": DISCLAIMER}
+# ---------------------------------------------------------------------------
+# Feature 4: checklist generator
+# ---------------------------------------------------------------------------
+def _grounded_entries(raw_items, text_key, document_text, limit):
+    """Keep entries with text and an exact supporting quote found in the document."""
+    kept, dropped = [], 0
+    for item in _items(raw_items):
+        if not isinstance(item, dict):
+            dropped += 1
+            continue
+        text = _strip_advice(_text(item.get(text_key)))
+        evidence = _text(item.get("evidence"))[:300]
+        source = _text(item.get("source_clause")) or "Not specified"
+        if not text or not is_grounded(evidence, document_text):
+            dropped += 1
+            continue
+        kept.append({text_key: text, "source_clause": source, "evidence": evidence})
+    return kept[:limit], dropped
+
+
+def generate_checklist(document_text):
+    raw = call_llm(
+        CHECKLIST_SYSTEM_PROMPT,
+        wrap_document(document_text, "Create the checklist following your instructions."),
+        json_mode=True,
+        max_tokens=3500,
+    )
+    data = _parse_json(raw)
+    if not any(key in data for key in ("action_items", "questions_for_lawyer", "key_dates")):
+        raise LLMError("The AI returned an incomplete checklist. Please try again.")
+
+    actions, d1 = _grounded_entries(data.get("action_items"), "item", document_text, 12)
+    questions, d2 = _grounded_entries(
+        data.get("questions_for_lawyer"), "question", document_text, 6
+    )
+
+    dates, d3 = [], 0
+    for item in _items(data.get("key_dates")):
+        if not isinstance(item, dict):
+            d3 += 1
+            continue
+        date = _text(item.get("date"))
+        description = _text(item.get("description"))
+        source = _text(item.get("source_clause")) or "Not specified"
+        # The date wording itself must appear in the document. Never trust a computed date.
+        if not date or not description or not is_grounded(date, document_text, min_chars=5):
+            d3 += 1
+            continue
+        dates.append({"date": date, "description": description, "source_clause": source})
+
+    if d1 + d2 + d3:
+        logger.warning(
+            "Dropped checklist entries that failed validation: actions=%d questions=%d dates=%d",
+            d1, d2, d3,
+        )
+
+    return {
+        "action_items": actions,
+        "questions_for_lawyer": questions,
+        "key_dates": dates[:15],
+        "disclaimer": DISCLAIMER,
+    }

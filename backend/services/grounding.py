@@ -14,7 +14,7 @@ def normalize(text):
     return re.sub(r"\s+", " ", text).strip()
 
 
-def is_grounded(excerpt, document_text):
+def is_grounded(excerpt, document_text, min_chars=12):
     """True if the excerpt appears in the document.
 
     An excerpt may use "..." to skip words; every piece around the "..."
@@ -23,6 +23,6 @@ def is_grounded(excerpt, document_text):
     haystack = normalize(document_text)
     pieces = [normalize(p).strip(" .,;:\"'") for p in re.split(r"\.\.\.|\u2026", excerpt)]
     pieces = [p for p in pieces if len(p) >= 4]
-    if not pieces or len(normalize(excerpt)) < 12:
+    if not pieces or len(normalize(excerpt)) < min_chars:
         return False
     return all(piece in haystack for piece in pieces)
