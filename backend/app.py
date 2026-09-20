@@ -19,6 +19,7 @@ from services.groq_service import (
     generate_checklist,
     simplify_document,
 )
+from services.s3_service import upload_original
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -93,7 +94,7 @@ def upload():
         return jsonify({"error": str(err)}), 422
 
     (doc_dir / "text.txt").write_text(text, encoding="utf-8")
-
+    stored_in_s3 = upload_original(saved_path, document_id, ext)
     meta = {
         "document_id": document_id,
         "filename": safe_name,
@@ -102,6 +103,7 @@ def upload():
         "char_count": len(text),
         "word_count": len(text.split()),
         "page_count": page_count,
+        "stored_in_s3": stored_in_s3,
     }
     (doc_dir / "meta.json").write_text(json.dumps(meta), encoding="utf-8")
 

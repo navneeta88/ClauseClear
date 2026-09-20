@@ -48,6 +48,9 @@ export default function DocumentPage({ doc, onBack }) {
         <div>
           <h1 className="doc-title">{doc.filename}</h1>
           <p className="hint">{meta}</p>
+          {doc.stored_in_s3 && (
+            <p className="hint">☁ Original stored in a private AWS S3 bucket</p>
+          )}
         </div>
       </header>
 
