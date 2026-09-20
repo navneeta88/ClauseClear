@@ -6,7 +6,7 @@ ClauseClear is an AI-assisted tool that helps a non-lawyer read a rental agreeme
 
 > **ClauseClear is an information tool, not a lawyer.** It explains what a document says. It does not give legal advice and never tells you whether to sign. Its output can contain mistakes, so read the original document and consult a qualified lawyer for important decisions.
 
-**Demo video:** TODO (add YouTube link)
+**Demo video:** (https://www.youtube.com/watch?v=uWuS-MGe-gw)
 
 ## Screenshots
 
