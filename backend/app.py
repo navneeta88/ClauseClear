@@ -36,7 +36,9 @@ app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = MAX_FILE_MB * 1024 * 1024
 
 # Only our React dev server may call this API from a browser.
-CORS(app, origins=["http://localhost:5173", "http://127.0.0.1:5173"])
+_default_origins = "http://localhost:5173,http://127.0.0.1:5173"
+_allowed_origins = os.getenv("ALLOWED_ORIGINS", _default_origins).split(",")
+CORS(app, origins=_allowed_origins)
 
 # Rate limiting protects the AI quota. In-memory storage is fine for one local server.
 limiter = Limiter(
@@ -237,5 +239,5 @@ def chat():
 
 
 if __name__ == "__main__":
-    # Debug (auto-reload) is for local development only. Set FLASK_DEBUG=0 for any deployment.
-    app.run(host="127.0.0.1", port=5000, debug=os.getenv("FLASK_DEBUG", "1") == "1")
+    port = int(os.getenv("PORT", "5000"))
+    app.run(host="0.0.0.0", port=port, debug=os.getenv("FLASK_DEBUG", "1") == "1")
