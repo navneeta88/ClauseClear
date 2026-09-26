@@ -7,6 +7,7 @@ ClauseClear is an AI-assisted tool that helps a non-lawyer read a rental agreeme
 > **ClauseClear is an information tool, not a lawyer.** It explains what a document says. It does not give legal advice and never tells you whether to sign. Its output can contain mistakes, so read the original document and consult a qualified lawyer for important decisions.
 
 **Demo video:** (https://www.youtube.com/watch?v=uWuS-MGe-gw)
+**Live app:** https://clause-clear-six.vercel.app/ (backend on Render free tier — may take ~30-60s to wake up on first visit)
 
 ## Screenshots
 
@@ -96,6 +97,7 @@ Be aware of these before relying on ClauseClear:
 - **No OCR:** scanned or image-only PDFs are not supported. Word's automatic list numbering is not extracted from DOCX files.
 - **English only.** Free-tier rate limits can slow or interrupt AI calls.
 - **Not implemented (future work):** multi-document library, retrieval/RAG and embeddings for long documents, Hindi and other Indian languages, contract comparison, PDF report export, Cognito authentication, DynamoDB, Lambda + API Gateway, public deployment.
+- **Deployed version (Render free tier):** the filesystem is ephemeral — uploaded documents and extracted text are lost on redeploy or restart, so you may need to re-upload after a period of inactivity. The original file is safe in S3, but the app currently doesn't reload text from there automatically. The service also sleeps after ~15 minutes of no traffic.
 
 ## Setup (Windows PowerShell)
 
